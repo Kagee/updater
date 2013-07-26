@@ -1,7 +1,8 @@
 package no.hild1.utils;
 
-import org.json.simple.*:
+import org.json.simple.*;
 import org.json.simple.parser.*;
+import java.util.*;
 
 public class Updater {
     public String foo;

@@ -52,7 +52,8 @@ public class Updater {
                 || !conf.containsKey("fileMatchRegexp") 
                 || !conf.containsKey("fileMatchRegexp")
                 || !conf.containsKey("finalName")
-                || !conf.containsKey("execute")) {
+                || !conf.containsKey("execute")
+                || !conf.containsKey("class")) {
             error("Config parameters missing", "Missing keys in " + configFileName);
         }
         return true;
@@ -133,6 +134,7 @@ public class Updater {
         String fileMatchRegexp = conf.getProperty("fileMatchRegexp");
         String finalName = conf.getProperty("finalName");
         boolean execute = conf.getProperty("execute").equals("true");
+        String className = conf.getProperty("class");
         String jsonURLString = jenkinsModule + "/api/json";
     
         String jsonText = loadJSONText(jsonURLString);
@@ -160,9 +162,7 @@ public class Updater {
             try {
                 URL url = output.toURI().toURL();//new URL("file:foo.jar");
                 URLClassLoader loader = new URLClassLoader (new URL[] {url});
-                //loader.getResourceAsStream(finalName)
-                //.getResourceAsStream("com/foo/bar/theta.properties");
-                Class cl = Class.forName ("no.hild1.bank.TelepayGUI", true, loader);
+                Class cl = Class.forName (className, true, loader);
                 Runnable foo = (Runnable) cl.newInstance();
                 //foo.run();
                 loader.close();

@@ -8,6 +8,9 @@ import java.io.*;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -114,7 +117,74 @@ public class Updater {
         String jarURL = url + "artifact/" + relativePath;
         return jarURL;
     }
+    private static int getOldBuildnumberZipFile(String finalName) {
+        try {
+        final ZipFile zipFile = new ZipFile(new File(finalName));
+        final Enumeration<? extends ZipEntry> entries = zipFile.entries();
+        //ZipInputStream zipInput = null;
 
+        while (entries.hasMoreElements()) {
+            final ZipEntry zipEntry = entries.nextElement();
+            if (!zipEntry.isDirectory()) {
+                final String fileName = zipEntry.getName();
+                System.out.println(fileName);
+                if (fileName.equals("buildinfo.properties")) {
+                    
+                    InputStream input = zipFile.getInputStream(zipEntry);
+                    
+                    Properties oldBuild = new Properties();
+                    oldBuild.load(input);
+                    input.close();
+                    if(oldBuild.containsKey("build_number")) {
+                        String bn = (String)oldBuild.get("build_number");
+                        
+                        oldBuild = null;
+                        System.out.println("Found build: " + bn);
+                        
+                        zipFile.close();
+                        
+                        return Integer.parseInt(bn);
+                    } else {
+                        System.out.println("Missing build_number from properties");
+                        return -1;
+                    }
+                }
+            }  
+        }
+        zipFile.close();
+        }
+        catch (final IOException ioe) {
+            System.err.println("Unhandled exception:");
+            ioe.printStackTrace();
+        }
+        return -1;
+    }
+    private static int getOldBuildnumberClassloader(String finalName) {
+        try {
+            Properties oldBuild = new Properties();
+            URL url = new File(finalName).toURI().toURL();
+            URLClassLoader loader = new URLClassLoader (new URL[] {url});
+            InputStream confIS = loader.getResourceAsStream("buildinfo.properties");
+            oldBuild.load(confIS);
+            confIS.close();
+            confIS = null;
+            loader.close();
+            loader = null;
+            if(oldBuild.containsKey("build_number")) {
+                String bn = (String)oldBuild.get("build_number");
+                oldBuild = null;
+                return Integer.parseInt(bn);
+                
+            } else {
+                System.out.println("Missing build_number from properties");
+                return -1;
+            }
+        } catch (Exception ex) {
+            System.out.println(ex);
+            return -1;
+        }
+    }
+    
     public static void main(String[] args) {
         JFrame frame = new JFrame("Checking for update");
         JProgressBar pb = new JProgressBar(0,5);
@@ -143,19 +213,26 @@ public class Updater {
         String downloadUrlString = u.getUrl(jsonText, jsonURLString, fileMatchRegexp);
 
         pb.setValue(3);
-        URL downloadURL;
-        File output = new File(".");
-        try {
-            output = new File(finalName);
-            downloadURL = new URL(downloadUrlString);
-            pb.setIndeterminate(true);
-            copyURLToFile(downloadURL, output, 2000, 2000);
-        } catch (MalformedURLException ex) {
-            error("Failed to download",ex.toString() + "\n" + downloadUrlString);
-        } catch (IllegalArgumentException ex) {
-            error("Failed to download",ex.toString() + "\n" + downloadUrlString);
-        } catch (IOException ex) {
-            error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+        
+        File output = new File(finalName);
+        int oldBuildNumber = getOldBuildnumberClassloader(finalName);
+        System.out.println("Old build: " + oldBuildNumber);
+        System.out.println("Newest build: " + u.latestBuild);
+        if (oldBuildNumber < u.latestBuild) {
+        System.out.println("Downloading new jar");
+            URL downloadURL;
+            
+            try {
+                downloadURL = new URL(downloadUrlString);
+                pb.setIndeterminate(true);
+                copyURLToFile(downloadURL, output, 2000, 2000);
+            } catch (MalformedURLException ex) {
+                error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+            } catch (IllegalArgumentException ex) {
+                error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+            } catch (IOException ex) {
+                error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+            }
         }
         
         if(execute) {

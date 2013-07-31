@@ -1,5 +1,8 @@
 package no.hild1.utils;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Toolkit;
 import java.net.*;
 import java.io.*;
 import java.util.*;
@@ -14,10 +17,7 @@ import static org.apache.commons.io.FileUtils.copyURLToFile;
 import javax.swing.*;
 
 public class Updater {
-    public String foo;
-    public Updater(String f) {
-        this.foo = f;
-    }
+    private int latestBuild = -1;
     private static void error(String header, String msg) {
         JOptionPane.showMessageDialog(null, msg, header, JOptionPane.ERROR_MESSAGE);
         System.exit(1);
@@ -51,7 +51,8 @@ public class Updater {
         if (!conf.containsKey("jenkinsModule") 
                 || !conf.containsKey("fileMatchRegexp") 
                 || !conf.containsKey("fileMatchRegexp")
-                || !conf.containsKey("finalName")) {
+                || !conf.containsKey("finalName")
+                || !conf.containsKey("execute")) {
             error("Config parameters missing", "Missing keys in " + configFileName);
         }
         return true;
@@ -77,13 +78,14 @@ public class Updater {
         return jsonText;
     }
 
-    public static String getUrl(String jsonText, String jsonURLString, String regexp) {
+    public String getUrl(String jsonText, String jsonURLString, String regexp) {
         String relativePath = "";
         String url = "";
         try {
             JSONObject json = new JSONObject(jsonText);
-            if (json.has("url") && json.has("artifacts")) {
+            if (json.has("url") && json.has("artifacts") && json.has("number")) {
                 url = json.optString("url");
+                latestBuild = json.optInt("number", -1);
                 JSONArray artifacts = json.optJSONArray("artifacts");
                 assert artifacts != null;
                 for(int i = 0; i < artifacts.length(); i++) {
@@ -97,7 +99,7 @@ public class Updater {
                         }
                     }
                 }
-                if(url.isEmpty() || relativePath.isEmpty()) {
+                if(url.isEmpty() || relativePath.isEmpty() || latestBuild == -1) {
                     error("Failed to find download path","Failed to find relativePath matching '" + regexp + "' on " + jsonURLString);
                 }
 
@@ -113,6 +115,16 @@ public class Updater {
     }
 
     public static void main(String[] args) {
+        JFrame frame = new JFrame("Checking for update");
+        JProgressBar pb = new JProgressBar(0,5);
+        pb.setIndeterminate(true);
+        frame.add(pb, BorderLayout.CENTER);
+        frame.setSize(300, 100);
+        final Toolkit tk = Toolkit.getDefaultToolkit();
+        final Dimension d = tk.getScreenSize();
+        frame.setLocation((d.width - frame.getWidth())/2, (d.height - frame.getHeight())/2);
+        frame.setVisible(true);
+        pb.setValue(1);
         String configFileName = "updater.conf";
         Properties conf = loadConfig(configFileName);
         checkConfig(conf, configFileName);
@@ -120,19 +132,21 @@ public class Updater {
         String jenkinsModule = conf.getProperty("jenkinsModule");
         String fileMatchRegexp = conf.getProperty("fileMatchRegexp");
         String finalName = conf.getProperty("finalName");
-        
+        boolean execute = conf.getProperty("execute").equals("true");
         String jsonURLString = jenkinsModule + "/api/json";
-
+    
         String jsonText = loadJSONText(jsonURLString);
+        pb.setValue(2);
+        Updater u = new Updater();
+        String downloadUrlString = u.getUrl(jsonText, jsonURLString, fileMatchRegexp);
 
-        String downloadUrlString = getUrl(jsonText, jsonURLString, fileMatchRegexp);
-
-        
+        pb.setValue(3);
         URL downloadURL;
         File output = new File(".");
         try {
             output = new File(finalName);
             downloadURL = new URL(downloadUrlString);
+            pb.setIndeterminate(true);
             copyURLToFile(downloadURL, output, 2000, 2000);
         } catch (MalformedURLException ex) {
             error("Failed to download",ex.toString() + "\n" + downloadUrlString);
@@ -142,29 +156,21 @@ public class Updater {
             error("Failed to download",ex.toString() + "\n" + downloadUrlString);
         }
         
-        
-        try {
-            URL url = output.toURI().toURL();//new URL("file:foo.jar");
-            URLClassLoader loader = new URLClassLoader (new URL[] {url});
-            //loader.getResourceAsStream(finalName)
-            //.getResourceAsStream("com/foo/bar/theta.properties");
-            Class cl = Class.forName ("no.hild1.bank.TelepayGUI", true, loader);
-            Runnable foo = (Runnable) cl.newInstance();
-            //foo.run();
-            loader.close();
-        } catch (MalformedURLException ex) {
-            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (ClassNotFoundException ex) {
-            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (InstantiationException ex) {
-            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
-            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
+        if(execute) {
+            try {
+                URL url = output.toURI().toURL();//new URL("file:foo.jar");
+                URLClassLoader loader = new URLClassLoader (new URL[] {url});
+                //loader.getResourceAsStream(finalName)
+                //.getResourceAsStream("com/foo/bar/theta.properties");
+                Class cl = Class.forName ("no.hild1.bank.TelepayGUI", true, loader);
+                Runnable foo = (Runnable) cl.newInstance();
+                //foo.run();
+                loader.close();
+                frame.dispose();
+            } catch (Exception ex) {
+                error("Failed to launch", ex.toString());
+            }
         }
-        
-        
     } 
 
 } 

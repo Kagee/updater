@@ -3,12 +3,14 @@ package no.hild1.utils;
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import static org.apache.commons.io.FileUtils.copyURLToFile;
 
-import javax.management.InvalidApplicationException;
 import javax.swing.*;
 
 public class Updater {
@@ -41,13 +43,19 @@ public class Updater {
             }
         }
         configFileName = ((internal) ? "internal ":"external ") + " file "+ configFileName;
-        if (!conf.containsKey("jenkinsModule") || !conf.containsKey("fileMatchRegexp") || !conf.containsKey("fileMatchRegexp")) {
-            error("Config parameters missing", "Missing keys in " + configFileName);
-        }
+
         conf.setProperty("origin", configFileName);
         return conf;
     }
-
+    public static boolean checkConfig(Properties conf, String configFileName) {
+        if (!conf.containsKey("jenkinsModule") 
+                || !conf.containsKey("fileMatchRegexp") 
+                || !conf.containsKey("fileMatchRegexp")
+                || !conf.containsKey("finalName")) {
+            error("Config parameters missing", "Missing keys in " + configFileName);
+        }
+        return true;
+    }
     public static String loadJSONText(String jsonURLString) {
         String jsonText = "";
         try {
@@ -100,25 +108,63 @@ public class Updater {
         } catch (JSONException jsone) {
             error("Syntax error","Syntax error on " + jsonURLString + "\n\n" + jsone.getMessage());
         }
-        String jarURL = url + "/artifact/" + relativePath;
-        return jarURL.replace("//", "/");
+        String jarURL = url + "artifact/" + relativePath;
+        return jarURL;
     }
 
     public static void main(String[] args) {
         String configFileName = "updater.conf";
         Properties conf = loadConfig(configFileName);
-
+        checkConfig(conf, configFileName);
+        
         String jenkinsModule = conf.getProperty("jenkinsModule");
         String fileMatchRegexp = conf.getProperty("fileMatchRegexp");
+        String finalName = conf.getProperty("finalName");
+        
         String jsonURLString = jenkinsModule + "/api/json";
 
         String jsonText = loadJSONText(jsonURLString);
 
-        String downloadUrl = getUrl(jsonText, jsonURLString, fileMatchRegexp);
+        String downloadUrlString = getUrl(jsonText, jsonURLString, fileMatchRegexp);
 
-        System.out.println(downloadUrl);
-
-
+        
+        URL downloadURL;
+        File output = new File(".");
+        try {
+            output = new File(finalName);
+            downloadURL = new URL(downloadUrlString);
+            copyURLToFile(downloadURL, output, 2000, 2000);
+        } catch (MalformedURLException ex) {
+            error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+        } catch (IllegalArgumentException ex) {
+            error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+        } catch (IOException ex) {
+            error("Failed to download",ex.toString() + "\n" + downloadUrlString);
+        }
+        
+        
+        try {
+            URL url = output.toURI().toURL();//new URL("file:foo.jar");
+            URLClassLoader loader = new URLClassLoader (new URL[] {url});
+            //loader.getResourceAsStream(finalName)
+            //.getResourceAsStream("com/foo/bar/theta.properties");
+            Class cl = Class.forName ("no.hild1.bank.TelepayGUI", true, loader);
+            Runnable foo = (Runnable) cl.newInstance();
+            //foo.run();
+            loader.close();
+        } catch (MalformedURLException ex) {
+            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ClassNotFoundException ex) {
+            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InstantiationException ex) {
+            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IllegalAccessException ex) {
+            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(Updater.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        
     } 
 
 } 

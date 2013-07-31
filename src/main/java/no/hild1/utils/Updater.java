@@ -47,7 +47,7 @@ public class Updater {
         conf.setProperty("origin", configFileName);
         return conf;
     }
-    public static boolean checkConfig(Properties conf, String configFileName) {
+    private static boolean checkConfig(Properties conf, String configFileName) {
         if (!conf.containsKey("jenkinsModule") 
                 || !conf.containsKey("fileMatchRegexp") 
                 || !conf.containsKey("fileMatchRegexp")
@@ -58,7 +58,7 @@ public class Updater {
         }
         return true;
     }
-    public static String loadJSONText(String jsonURLString) {
+    private static String loadJSONText(String jsonURLString) {
         String jsonText = "";
         try {
             URL jsonURL = new URL(jsonURLString);
@@ -79,7 +79,7 @@ public class Updater {
         return jsonText;
     }
 
-    public String getUrl(String jsonText, String jsonURLString, String regexp) {
+    private String getUrl(String jsonText, String jsonURLString, String regexp) {
         String relativePath = "";
         String url = "";
         try {
@@ -160,7 +160,7 @@ public class Updater {
         
         if(execute) {
             try {
-                URL url = output.toURI().toURL();//new URL("file:foo.jar");
+                URL url = output.toURI().toURL();
                 URLClassLoader loader = new URLClassLoader (new URL[] {url});
                 Class cl = Class.forName (className, true, loader);
                 Runnable foo = (Runnable) cl.newInstance();
@@ -170,6 +170,8 @@ public class Updater {
             } catch (Exception ex) {
                 error("Failed to launch", ex.toString());
             }
+        } else {
+            frame.dispose();
         }
     } 
 
